@@ -13,6 +13,12 @@ Red/System []
             str2 [c-string!]
             return: [integer!]
         ]
+        strncmp: "strncmp" [
+            str1 [c-string!]
+            str2 [c-string!]
+            n [integer!]
+            return: [integer!]
+        ]
     ]
 ]
 #either OS = 'Windows [
@@ -94,25 +100,103 @@ read-input: func [
     ]
 ]
 
+#enum MetaCommandResult! [
+    META_COMMAND_SUCCESS
+    META_COMMAND_UNRECOGNIZED_COMMAND
+]
+
+#enum PrepareResult! [
+    PREPARE_SUCCESS
+    PREPARE_UNRECOGNIZED_STATEMENT
+]
+
+#enum StatementType! [
+    STATEMENT_INSERT
+    STATEMENT_SELECT
+]
+
+statement!: alias struct! [
+    type [StatementType!]
+]
+
+prepare-statement: func [
+    buf [InputBuffer!]
+    stmt [statement!]
+    return: [PrepareResult!]
+][
+    if zero? strncmp buf/buf "insert" 6 [
+        stmt/type: STATEMENT_INSERT
+        return PREPARE_SUCCESS
+    ]
+    if zero? strcmp buf/buf "select" [
+        stmt/type: STATEMENT_SELECT
+        return PREPARE_SUCCESS
+    ]
+    PREPARE_UNRECOGNIZED_STATEMENT
+]
+
+execute-statement: func [
+    stmt [statement!]
+][
+    ;print-line ["stmt/type: " stmt/type]
+    switch stmt/type [
+        STATEMENT_INSERT [
+            print "This is where we would do an insert.^/^/"
+        ]
+        STATEMENT_SELECT [
+            print "This is where we would do a select.^/^/"
+        ]
+    ]
+]
+
+do-meta-command: func [
+    buf [InputBuffer!]
+    return: [MetaCommandResult!]
+][
+    if any [zero? strcmp buf/buf ".exit" zero? strcmp buf/buf ".q"][
+        printf "Bye~^/"
+        quit EXIT_SUCCESS
+    ]
+    META_COMMAND_UNRECOGNIZED_COMMAND
+]
+
 main: func [
     /local
         buf [InputBuffer!]
-        ret [integer!]
+        stmt [statement!]
 ][
     buf: declare InputBuffer!
     buf: new-input-buffer
+    stmt: declare statement!
 
     forever [
         print "db > "
         read-input buf
 
-        ret: strcmp buf/buf ".exit"
-        if zero? ret [
-            print "bye~^/"
-            quit EXIT_SUCCESS
+        if buf/buf/1 = #"." [
+            switch do-meta-command buf [
+                META_COMMAND_SUCCESS [
+                    continue
+                ]
+                META_COMMAND_UNRECOGNIZED_COMMAND [
+                    printf ["Unrecognized command '%s'.^/^/" buf/buf]
+                    continue
+                ]
+            ]
         ]
 
-        printf ["Unrecognized command '%s'.^/^/" buf/buf]
+        switch prepare-statement buf stmt [
+            PREPARE_SUCCESS [
+                
+            ]
+            PREPARE_UNRECOGNIZED_STATEMENT [
+                printf ["Unrecognized keyword at start of '%s'.^/^/" buf/buf]
+                continue
+            ]
+        ]
+
+        execute-statement stmt
+        print "Executed.^/^/"
     ]
 ]
 
