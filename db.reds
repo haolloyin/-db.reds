@@ -19,6 +19,10 @@ Red/System []
             n [integer!]
             return: [integer!]
         ]
+        sscanf: "sscanf" [
+            [variadic]
+            return: [integer!]
+        ]
     ]
 ]
 #either OS = 'Windows [
@@ -108,6 +112,7 @@ read-input: func [
 #enum PrepareResult! [
     PREPARE_SUCCESS
     PREPARE_UNRECOGNIZED_STATEMENT
+    PREPARE_SYNTAX_ERROR
 ]
 
 #enum StatementType! [
@@ -115,17 +120,45 @@ read-input: func [
     STATEMENT_SELECT
 ]
 
+row!: alias struct! [
+    id [integer!]
+    username [c-string!]
+    email [c-string!]
+]
+
 statement!: alias struct! [
     type [StatementType!]
+    row-to-insert [row!]
 ]
+
+#define COLUMN_USERNAME_SIZE 32
+#define COLUMN_EMAIL_SIZE 255
+
+#define size-of-attribute(struct attribute) [size? struct/attribute]
+;#define ID_SIZE size-of-attribute(row! id)
+;print-line ["ID_SIZE: " ID_SIZE]
+print-line ["typed-value!/type: " (size? typed-value!/type)]
 
 prepare-statement: func [
     buf [InputBuffer!]
     stmt [statement!]
     return: [PrepareResult!]
+    /local
+        args-assigned [integer!]
 ][
     if zero? strncmp buf/buf "insert" 6 [
         stmt/type: STATEMENT_INSERT
+        args-assigned: sscanf [
+            buf/buf
+            "insert %d %s %s"
+            stmt/row-to-insert/id
+            stmt/row-to-insert/username
+            stmt/row-to-insert/email]
+
+        if args-assigned < 3 [
+            return PREPARE_SYNTAX_ERROR
+        ]
+
         return PREPARE_SUCCESS
     ]
     if zero? strcmp buf/buf "select" [
