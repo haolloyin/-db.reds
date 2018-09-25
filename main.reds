@@ -80,15 +80,18 @@ read-input: func [
         quit EXIT_FAILURE
     ]
 
-    ; 去掉末尾的换行符
-    printf ["read-input len: %d, size: %d^/" (length? buf/buf) (size? buf/buf)]
-    i: 0
-    while [i < (length? buf/buf)][
-        buf/buf/i: bytes/i
-        i: i + 1
+    i: length? buf/buf
+    if bytes/i = #"^/" [
+        ; fgets 会包含换行符，去掉掉末尾的换行符
+        ;printf ["read-input len: %d, size: %d^/" (length? buf/buf) (size? buf/buf)]
+        i: 0
+        while [i < (length? buf/buf)][
+            buf/buf/i: bytes/i
+            i: i + 1
+        ]
+        buf/buf/i: null-byte
+        ;printf ["read-input len: %d, size: %d^/" (length? buf/buf) (size? buf/buf)]
     ]
-    buf/buf/i: null-byte
-    printf ["read-input len: %d, size: %d^/" (length? buf/buf) (size? buf/buf)]
 ]
 
 main: func [
@@ -103,13 +106,13 @@ main: func [
         print "db > "
         read-input buf
 
-        ; fgets 会包含换行符
-        ret: strcmp buf/buf ".exit^/"
+        ret: strcmp buf/buf ".exit"
         if zero? ret [
+            print "bye~^/"
             quit EXIT_SUCCESS
         ]
 
-        printf ["Unrecognized command '%s'.^/" buf/buf]
+        printf ["Unrecognized command '%s'.^/^/" buf/buf]
     ]
 ]
 
