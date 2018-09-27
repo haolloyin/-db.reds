@@ -131,13 +131,37 @@ statement!: alias struct! [
     row-to-insert [row!]
 ]
 
-#define COLUMN_USERNAME_SIZE 32
-#define COLUMN_EMAIL_SIZE 255
+#define COLUMN_USERNAME_SIZE    32
+#define COLUMN_EMAIL_SIZE       255
+#define ID_SIZE                 4
+#define USERNAME_SIZE           32
+#define EMAIL_SIZE              255
+#define ID_OFFSET               0
+#define USERNAME_OFFSET         [ID_OFFSET + ID_SIZE]
+#define EMAIL_OFFSET            [USERNAME_OFFSET + USERNAME_SIZE]
+#define ROW_SIZE                [ID_SIZE + USERNAME_SIZE + EMAIL_SIZE]
 
-#define size-of-attribute(struct attribute) [size? struct/attribute]
-;#define ID_SIZE size-of-attribute(row! id)
-;print-line ["ID_SIZE: " ID_SIZE]
-print-line ["typed-value!/type: " (size? typed-value!/type)]
+serialize-row: func [
+    src [row!]
+    dst [byte-ptr!]
+    /local tmp
+][
+    tmp: as byte-ptr! src
+    copy-memory (dst + ID_OFFSET) (tmp + ID_OFFSET) ID_SIZE
+    copy-memory (dst + USERNAME_OFFSET) (tmp + USERNAME_OFFSET) USERNAME_SIZE
+    copy-memory (dst + EMAIL_OFFSET) (tmp + EMAIL_OFFSET) EMAIL_SIZE
+]
+
+deserialize-row: func [
+    src [byte-ptr!]
+    dst [row!]
+    /local tmp
+][
+    tmp: as byte-ptr! dst
+    copy-memory (tmp + ID_OFFSET) (src + ID_OFFSET) ID_SIZE
+    copy-memory (tmp + USERNAME_OFFSET) (src + USERNAME_OFFSET) USERNAME_SIZE
+    copy-memory (tmp + EMAIL_OFFSET) (src + EMAIL_OFFSET) EMAIL_SIZE
+]
 
 prepare-statement: func [
     buf [InputBuffer!]
