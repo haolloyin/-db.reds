@@ -180,6 +180,11 @@ copy-row: func [
     ]
 ]
 
+free-row: func [row [row!]][
+    free as byte-ptr! row/username
+    free as byte-ptr! row/email
+]
+
 print-row: func [
     row [row!]
 ][
@@ -288,6 +293,7 @@ execute-select: func [
         slot: row-slot table i
         copy-row (as row! slot) row
         print-row row
+        free-row row
         i: i + 1
     ]
     return EXECUTE_SUCCESS
