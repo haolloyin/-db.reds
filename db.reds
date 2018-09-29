@@ -157,26 +157,22 @@ statement!: alias struct! [
     row2insert [row!]
 ]
 
-serialize-row: func [
+copy-row: func [
     src [row!]
-    dst [byte-ptr!]
-    /local tmp
-][
-    tmp: as byte-ptr! src
-    copy-memory (dst + ID_OFFSET) (tmp + ID_OFFSET) ID_SIZE
-    copy-memory (dst + USERNAME_OFFSET) (tmp + USERNAME_OFFSET) USERNAME_SIZE
-    copy-memory (dst + EMAIL_OFFSET) (tmp + EMAIL_OFFSET) EMAIL_SIZE
-]
-
-deserialize-row: func [
-    src [byte-ptr!]
     dst [row!]
-    /local tmp
+    /local target len
 ][
-    tmp: as byte-ptr! dst
-    copy-memory (tmp + ID_OFFSET) (src + ID_OFFSET) ID_SIZE
-    copy-memory (tmp + USERNAME_OFFSET) (src + USERNAME_OFFSET) USERNAME_SIZE
-    copy-memory (tmp + EMAIL_OFFSET) (src + EMAIL_OFFSET) EMAIL_SIZE
+    dst/id: src/id
+
+    len: length? src/username
+    target: allocate len
+    copy-memory target (as byte-ptr! src/username) len
+    dst/username: as-c-string target
+
+    len: length? src/email
+    target: allocate len
+    copy-memory target (as byte-ptr! src/email) len
+    dst/email: as-c-string target
 ]
 
 print-row: func [
@@ -264,7 +260,7 @@ execute-insert: func [
     ]
     row2insert: stmt/row2insert
     slot: row-slot table table/rows-num
-    serialize-row row2insert slot
+    copy-row row2insert (as row! slot)
     table/rows-num: table/rows-num + 1
 
     return EXECUTE_SUCCESS
@@ -283,7 +279,7 @@ execute-select: func [
     row: declare row! 
     while [i < table/rows-num][
         slot: row-slot table i
-        deserialize-row slot row
+        copy-row (as row! slot) row
         print-row row
         i: i + 1
     ]
