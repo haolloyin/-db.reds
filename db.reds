@@ -128,7 +128,7 @@ row!: alias struct! [
 
 statement!: alias struct! [
     type [StatementType!]
-    row-to-insert [row!]
+    row2insert [row!]
 ]
 
 #define COLUMN_USERNAME_SIZE    32
@@ -169,19 +169,22 @@ prepare-statement: func [
     return: [PrepareResult!]
     /local
         args-assigned [integer!]
+        id [integer!]
 ][
     if zero? strncmp buf/buf "insert" 6 [
         stmt/type: STATEMENT_INSERT
+        id: 0
         args-assigned: sscanf [
-            buf/buf
-            "insert %d %s %s"
-            stmt/row-to-insert/id
-            stmt/row-to-insert/username
-            stmt/row-to-insert/email]
+            buf/buf "insert %d %s %s"
+            :id                     ; 应该传入指针
+            ;stmt/row2insert/id
+            stmt/row2insert/username
+            stmt/row2insert/email]
 
         if args-assigned < 3 [
             return PREPARE_SYNTAX_ERROR
         ]
+        stmt/row2insert/id: id
 
         return PREPARE_SUCCESS
     ]
@@ -225,6 +228,9 @@ main: func [
     buf: declare InputBuffer!
     buf: new-input-buffer
     stmt: declare statement!
+    stmt/row2insert: declare row!
+    stmt/row2insert/username: declare c-string!
+    stmt/row2insert/email: declare c-string!
 
     forever [
         print "db > "
