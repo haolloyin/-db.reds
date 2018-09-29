@@ -178,7 +178,8 @@ copy-row: func [
 print-row: func [
     row [row!]
 ][
-    printf ["(%d, %s, %s)^/" row/id row/username row/email]
+    printf ["(%d, %s, %s)" row/id row/username row/email]
+    printf [" at (%d, %d, %d)^/" row/id row/username row/email]
 ]
 
 new-table: func [
@@ -235,7 +236,8 @@ prepare-statement: func [
         ]
         stmt/row2insert/id: id
 
-        printf ["sscanf ok, id:%d, name:%s, email:%s^/"
+        printf ["=>sscanf ok, id:%d, name:%s, email:%s at %d, %d, %d^/"
+                id stmt/row2insert/username stmt/row2insert/email
                 id stmt/row2insert/username stmt/row2insert/email]
 
         return PREPARE_SUCCESS
@@ -306,7 +308,11 @@ do-meta-command: func [
     buf [InputBuffer!]
     return: [MetaCommandResult!]
 ][
-    if any [zero? strcmp buf/buf ".exit" zero? strcmp buf/buf ".q"][
+    if any [
+        zero? strcmp buf/buf ".exit" 
+        zero? strcmp buf/buf ".q"
+        zero? strcmp buf/buf "q"
+    ][
         printf "Bye~^/"
         quit EXIT_SUCCESS
     ]
@@ -331,15 +337,14 @@ main: func [
         print "db > "
         read-input buf
 
-        if buf/buf/1 = #"." [
-            switch do-meta-command buf [
-                META_COMMAND_SUCCESS [
-                    continue
-                ]
-                META_COMMAND_UNRECOGNIZED_COMMAND [
-                    printf ["Unrecognized command '%s'.^/^/" buf/buf]
-                    continue
-                ]
+        switch do-meta-command buf [
+            META_COMMAND_SUCCESS [
+                continue
+            ]
+            META_COMMAND_UNRECOGNIZED_COMMAND [
+                if zero? strcmp buf/buf "" [continue]
+                printf ["Unrecognized command '%s'.^/^/" buf/buf]
+                continue
             ]
         ]
 
@@ -359,7 +364,7 @@ main: func [
 
         switch execute-statement stmt table [
             EXECUTE_SUCCESS [
-                printf "Excuted.^/"
+                printf "=>Excuted.^/"
             ]
             EXECUTE_TABLE_FULL [
                 printf "Error: Table full.^/"
