@@ -115,10 +115,31 @@ read-input: func [
     PREPARE_SYNTAX_ERROR
 ]
 
+#enum ExecuteResult! [
+    EXECUTE_SUCCESS
+    EXECUTE_TABLE_FULL
+]
+
 #enum StatementType! [
     STATEMENT_INSERT
     STATEMENT_SELECT
 ]
+
+COLUMN_USERNAME_SIZE:   32
+COLUMN_EMAIL_SIZE:      255
+ID_SIZE:                4
+USERNAME_SIZE:          32
+EMAIL_SIZE:             255
+
+ID_OFFSET:              0
+USERNAME_OFFSET:        ID_OFFSET + ID_SIZE
+EMAIL_OFFSET:           USERNAME_OFFSET + USERNAME_SIZE
+ROW_SIZE:               ID_SIZE + USERNAME_SIZE + EMAIL_SIZE
+
+PAGE_SIZE:              4096
+TABLE_MAX_PAGES:        100
+ROWS_PER_PAGE:          PAGE_SIZE / ROW_SIZE
+TABLE_MAX_ROWS:         ROWS_PER_PAGE * TABLE_MAX_PAGES
 
 row!: alias struct! [
     id [integer!]
@@ -126,20 +147,15 @@ row!: alias struct! [
     email [c-string!]
 ]
 
+table!: alias struct! [
+    rows-num [integer!]
+    pages [byte-ptr!]
+]
+
 statement!: alias struct! [
     type [StatementType!]
     row2insert [row!]
 ]
-
-#define COLUMN_USERNAME_SIZE    32
-#define COLUMN_EMAIL_SIZE       255
-#define ID_SIZE                 4
-#define USERNAME_SIZE           32
-#define EMAIL_SIZE              255
-#define ID_OFFSET               0
-#define USERNAME_OFFSET         [ID_OFFSET + ID_SIZE]
-#define EMAIL_OFFSET            [USERNAME_OFFSET + USERNAME_SIZE]
-#define ROW_SIZE                [ID_SIZE + USERNAME_SIZE + EMAIL_SIZE]
 
 serialize-row: func [
     src [row!]
@@ -161,6 +177,43 @@ deserialize-row: func [
     copy-memory (tmp + ID_OFFSET) (src + ID_OFFSET) ID_SIZE
     copy-memory (tmp + USERNAME_OFFSET) (src + USERNAME_OFFSET) USERNAME_SIZE
     copy-memory (tmp + EMAIL_OFFSET) (src + EMAIL_OFFSET) EMAIL_SIZE
+]
+
+print-row: func [
+    row [row!]
+][
+    printf ["(%d, %s, %s)^/" row/id row/username row/email]
+]
+
+new-table: func [
+    return: [table!]
+    /local tb [table!]
+][
+    tb: declare table!
+    tb/rows-num: 0
+    tb/pages: allocate TABLE_MAX_PAGES
+    tb
+]
+
+row-slot: func [
+    table [table!]
+    row-num [integer!]
+    return: [byte-ptr!]
+    /local
+        page-num [integer!]
+        page [byte-ptr!]
+        row-offset [integer!]
+        byte-offset [integer!]
+][
+    page-num: row-num / ROWS_PER_PAGE
+    page: table/pages + page-num
+    if null? page [
+        page: allocate PAGE_SIZE
+    ]
+    row-offset: row-num % ROWS_PER_PAGE
+    byte-offset: row-offset * ROW_SIZE
+
+    page + byte-offset
 ]
 
 prepare-statement: func [
@@ -186,6 +239,9 @@ prepare-statement: func [
         ]
         stmt/row2insert/id: id
 
+        printf ["sscanf ok, id:%d, name:%s, email:%s^/"
+                id stmt/row2insert/username stmt/row2insert/email]
+
         return PREPARE_SUCCESS
     ]
     if zero? strcmp buf/buf "select" [
@@ -195,16 +251,57 @@ prepare-statement: func [
     PREPARE_UNRECOGNIZED_STATEMENT
 ]
 
+execute-insert: func [
+    stmt [statement!]
+    table [table!]
+    return: [ExecuteResult!]
+    /local
+        row2insert [row!]
+        slot [byte-ptr!]
+][
+    if table/rows-num >= TABLE_MAX_ROWS [
+        return EXECUTE_TABLE_FULL
+    ]
+    row2insert: stmt/row2insert
+    slot: row-slot table table/rows-num
+    serialize-row row2insert slot
+    table/rows-num: table/rows-num + 1
+
+    return EXECUTE_SUCCESS
+]
+
+execute-select: func [
+    stmt [statement!]
+    table [table!]
+    return: [ExecuteResult!]
+    /local
+        row [row!]
+        slot [byte-ptr!]
+        i [integer!]
+][
+    i: 0
+    row: declare row! 
+    while [i < table/rows-num][
+        slot: row-slot table i
+        deserialize-row slot row
+        print-row row
+        i: i + 1
+    ]
+    return EXECUTE_SUCCESS
+]
+
 execute-statement: func [
     stmt [statement!]
+    table [table!]
+    return: [ExecuteResult!]
 ][
     ;print-line ["stmt/type: " stmt/type]
     switch stmt/type [
         STATEMENT_INSERT [
-            print "This is where we would do an insert.^/^/"
+            return execute-insert stmt table
         ]
         STATEMENT_SELECT [
-            print "This is where we would do a select.^/^/"
+            return execute-select stmt table
         ]
     ]
 ]
@@ -224,6 +321,7 @@ main: func [
     /local
         buf [InputBuffer!]
         stmt [statement!]
+        table [table!]
 ][
     buf: declare InputBuffer!
     buf: new-input-buffer
@@ -231,6 +329,7 @@ main: func [
     stmt/row2insert: declare row!
     stmt/row2insert/username: declare c-string!
     stmt/row2insert/email: declare c-string!
+    table: new-table
 
     forever [
         print "db > "
@@ -250,7 +349,11 @@ main: func [
 
         switch prepare-statement buf stmt [
             PREPARE_SUCCESS [
-                
+
+            ]
+            PREPARE_SYNTAX_ERROR [
+                printf ["Syntax error. Could not parse statement.^/^/" buf/buf]
+                continue
             ]
             PREPARE_UNRECOGNIZED_STATEMENT [
                 printf ["Unrecognized keyword at start of '%s'.^/^/" buf/buf]
@@ -258,8 +361,14 @@ main: func [
             ]
         ]
 
-        execute-statement stmt
-        print "Executed.^/^/"
+        switch execute-statement stmt table [
+            EXECUTE_SUCCESS [
+                printf "Excuted.^/"
+            ]
+            EXECUTE_TABLE_FULL [
+                printf "Error: Table full.^/"
+            ]
+        ]
     ]
 ]
 
