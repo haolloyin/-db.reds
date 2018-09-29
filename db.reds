@@ -337,14 +337,20 @@ main: func [
         print "db > "
         read-input buf
 
-        switch do-meta-command buf [
-            META_COMMAND_SUCCESS [
-                continue
-            ]
-            META_COMMAND_UNRECOGNIZED_COMMAND [
-                if zero? strcmp buf/buf "" [continue]
-                printf ["Unrecognized command '%s'.^/^/" buf/buf]
-                continue
+        if zero? strcmp buf/buf "" [continue]
+        if any [
+            buf/buf/1 = #"."
+            buf/buf/1 = #"q"
+        ][
+            switch do-meta-command buf [
+                META_COMMAND_SUCCESS [
+                    continue
+                ]
+                META_COMMAND_UNRECOGNIZED_COMMAND [
+                    if zero? strcmp buf/buf "" [continue]
+                    printf ["Unrecognized command '%s'.^/^/" buf/buf]
+                    continue
+                ]
             ]
         ]
 
