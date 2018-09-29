@@ -173,6 +173,11 @@ copy-row: func [
     target: allocate len
     copy-memory target (as byte-ptr! src/email) len
     dst/email: as-c-string target
+    
+    printf ["   =>copy from row@%d(%d,%d,%d) to row@%d(%d,%d,%d)^/"
+        src src/id src/username src/email
+        dst dst/id dst/username dst/email
+    ]
 ]
 
 print-row: func [
@@ -236,7 +241,7 @@ prepare-statement: func [
         ]
         stmt/row2insert/id: id
 
-        printf ["=>sscanf ok, id:%d, name:%s, email:%s at %d, %d, %d^/"
+        printf ["   =>sscanf ok, id:%d, name:%s, email:%s at %d, %d, %d^/"
                 id stmt/row2insert/username stmt/row2insert/email
                 id stmt/row2insert/username stmt/row2insert/email]
 
@@ -370,7 +375,7 @@ main: func [
 
         switch execute-statement stmt table [
             EXECUTE_SUCCESS [
-                printf "=>Excuted.^/"
+                printf "   =>Excuted.^/"
             ]
             EXECUTE_TABLE_FULL [
                 printf "Error: Table full.^/"
